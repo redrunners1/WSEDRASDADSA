@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Mini Geometry Dash</title>
+<style>
+body {
+  margin:0;
+  background:black;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  font-family:Arial;
+}
+canvas {
+  background:#111;
+  border:3px solid cyan;
+}
+</style>
+</head>
+<body>
+
+<canvas id="game" width="900" height="400"></canvas>
+
+<audio id="music" loop>
+  <!-- Replace with your own music file -->
+  <!-- <source src="song.mp3" type="audio/mpeg"> -->
+</audio>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const music = document.getElementById("music");
+
+const gravity = 0.9;
+const speed = 6;
+
+let state = "menu";
+let level = 0;
+let rotation = 0;
+let practice = false;
+let checkpointX = 50;
+
+let particles = [];
+
+const levels = [{
+  length: 2000,
+  platforms:[
+    {x:0,y:360,w:2000,h:40}
+  ],
+  spikes:[
+    {x:500,y:340,w:40,h:20},
+    {x:900,y:340,w:40,h:20},
+    {x:1300,y:340,w:40,h:20}
+  ],
+  movers:[
+    {x:700,y:260,w:100,h:20,dir:1}
+  ],
+  checkpoints:[600,1200]
+}];
+
+let player;
+
+function resetPlayer(full=true){
+  player = {x: full?50:checkpointX, y:300, w:30, h:30, dy:0, grounded:false};
+  rotation = 0;
+  if(full) checkpointX = 50;
+}
+
+resetPlayer();
+
+function explode(x,y){
+  for(let i=0;i<20;i++){
+    particles.push({
+      x,y,
+      dx:(Math.random()-0.5)*6,
+      dy:(Math.random()-0.5)*6,
+      life:30
+    });
+  }
+}
+
+function collide(a,b){
+  return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y;
+}
+
+document.addEventListener("keydown",e=>{
+  if((e.code==="Space"||e.code==="ArrowUp")&&player.grounded){
+    player.dy=-15;
+    player.grounded=false;
+  }
+  if(e.code==="KeyP") practice=!practice;
+  if(e.code==="KeyR") resetPlayer();
+});
+
+canvas.addEventListener("click",()=>{
+  if(player.grounded){
+    player.dy=-15;
+    player.grounded=false;
+  }
+});
+
+function update(){
+  if(state!=="play") return;
+
+  player.x+=speed;
+  player.dy+=gravity;
+  player.y+=player.dy;
+  rotation+=0.15;
+  player.grounded=false;
+
+  const L=levels[level];
+
+  L.platforms.forEach(p=>{
+    if(collide(player,p)&&player.dy>=0){
+      player.y=p.y-player.h;
+      player.dy=0;
+      player.grounded=true;
+    }
+  });
+
+  L.movers.forEach(m=>{
+    m.x+=m.dir*2;
+    if(m.x<600||m.x>900) m.dir*=-1;
+    if(collide(player,m)&&player.dy>=0){
+      player.y=m.y-player.h;
+      player.dy=0;
+      player.grounded=true;
+    }
+  });
+
+  L.spikes.forEach(s=>{
+    if(collide(player,s)){
+      explode(player.x+15,player.y+15);
+      if(practice){
+        resetPlayer(false);
+      } else {
+        resetPlayer();
+      }
+    }
+  });
+
+  L.checkpoints.forEach(c=>{
+    if(player.x>c && checkpointX<c){
+      checkpointX=c;
+    }
+  });
+
+  if(player.y>canvas.height){
+    practice?resetPlayer(false):resetPlayer();
+  }
+}
+
+function drawCube(){
+  ctx.save();
+  ctx.translate(player.x+15,player.y+15);
+  ctx.rotate(rotation);
+  ctx.fillStyle="cyan";
+  ctx.fillRect(-15,-15,30,30);
+  ctx.restore();
+}
+
+function drawParticles(){
+  particles.forEach(p=>{
+    ctx.fillStyle="orange";
+    ctx.fillRect(p.x,p.y,4,4);
+    p.x+=p.dx;
+    p.y+=p.dy;
+    p.life--;
+  });
+  particles=particles.filter(p=>p.life>0);
+}
+
+function drawProgress(){
+  const percent=Math.min(player.x/levels[level].length,1);
+  ctx.fillStyle="#333";
+  ctx.fillRect(200,10,500,10);
+  ctx.fillStyle="cyan";
+  ctx.fillRect(200,10,500*percent,10);
+}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if(state==="menu"){
+    ctx.fillStyle="white";
+    ctx.font="40px Arial";
+    ctx.fillText("MINI GEOMETRY DASH",220,160);
+    ctx.font="24px Arial";
+    ctx.fillText("Click to Play",380,220);
+    return;
+  }
+
+  const L=levels[level];
+
+  ctx.fillStyle="#555";
+  L.platforms.forEach(p=>ctx.fillRect(p.x-player.x+50,p.y,p.w,p.h));
+  L.movers.forEach(m=>ctx.fillRect(m.x-player.x+50,m.y,m.w,m.h));
+
+  ctx.fillStyle="red";
+  L.spikes.forEach(s=>ctx.fillRect(s.x-player.x+50,s.y,s.w,s.h));
+
+  drawCube();
+  drawParticles();
+  drawProgress();
+
+  ctx.fillStyle="white";
+  ctx.fillText(practice?"PRACTICE MODE":"NORMAL MODE",10,20);
+}
+
+canvas.addEventListener("click",()=>{
+  if(state==="menu"){
+    state="play";
+    music.play().catch(()=>{});
+  }
+});
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+
+</body>
+</html>
